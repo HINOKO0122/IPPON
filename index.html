@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPPON Online</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .shutter {
+            transition: width 0.3s ease-out;
+            background: linear-gradient(to right, #000, #333);
+        }
+        #ippon-logo {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(2);
+            z-index: 100;
+            color: #ffd700;
+            font-weight: 900;
+            text-shadow: 0 0 20px #ff0000;
+        }
+    </style>
+</head>
+<body class="bg-yellow-500 min-h-screen overflow-hidden font-bold">
+
+    <div id="left-shutter" class="shutter fixed left-0 top-0 h-full w-0 z-50"></div>
+    <div id="right-shutter" class="shutter fixed right-0 top-0 h-full w-0 z-50"></div>
+
+    <div id="ippon-logo" class="text-8xl">IPPON !</div>
+
+    <div class="flex flex-col items-center justify-center min-h-screen p-4">
+        
+        <div class="bg-black text-white p-6 rounded-lg shadow-2xl w-full max-w-2xl text-center mb-8">
+            <h2 class="text-sm text-yellow-500 mb-2">お題</h2>
+            <div id="odai-display" class="text-3xl">読み込み中...</div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 w-full max-w-md">
+            <input id="odai-input" type="text" placeholder="新しいお題を入力" class="p-2 rounded text-black">
+            <button onclick="changeOdai()" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">お題を変更する</button>
+
+            <hr class="border-yellow-600 my-4">
+
+            <button id="answer-btn" onclick="toggleAnswerMode()" class="bg-red-600 text-white p-4 rounded-xl text-xl shadow-lg">解答する</button>
+            
+            <div id="vote-section" class="hidden flex flex-col items-center border-2 border-black p-4 rounded-xl">
+                <p class="mb-2">面白いと思ったら連打！</p>
+                <button onmousedown="startVote()" onmouseup="endVote()" onmouseleave="endVote()" 
+                        class="bg-black text-white w-32 h-32 rounded-full border-4 border-yellow-400 active:scale-90 transition">
+                    面白い
+                </button>
+            </div>
+        </div>
+        
+        <div id="scoreboard" class="mt-8 bg-white/20 p-4 rounded-lg w-full max-w-md">
+            <h3 class="text-center mb-2">IPPON獲得数</h3>
+            <div id="score-list"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Firebaseのインポート
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // TODO: あなたのFirebase Configに書き換えてください
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 部屋ID（今回は固定。URLパラメータから取得するように拡張可能）
+        const roomId = "room001";
+        const roomRef = doc(db, "rooms", roomId);
+
+        // データのリアルタイム監視
+        onSnapshot(roomRef, (doc) => {
+            const data = doc.data();
+            if (!data) return;
+
+            // お題の更新
+            document.getElementById('odai-display').innerText = data.odai;
+
+            // シャッターの演出 (75%でIPPON)
+            const threshold = 75;
+            const currentPercent = (data.votes / 10) * 100; // 仮に10人評価者がいる想定
+            const shutterWidth = Math.min(currentPercent / 1.5, 50); // 最大50%ずつ
+            document.getElementById('left-shutter').style.width = `${shutterWidth}%`;
+            document.getElementById('right-shutter').style.width = `${shutterWidth}%`;
+
+            if (data.votes >= 8) { // 8人以上で一本（ここも動的に計算可能）
+                showIppon();
+            }
+        });
+
+        // お題変更関数
+        window.changeOdai = async () => {
+            const newOdai = document.getElementById('odai-input').value;
+            if (newOdai) {
+                await updateDoc(roomRef, { odai: newOdai, votes: 0 });
+                document.getElementById('odai-input').value = "";
+            }
+        };
+
+        // 面白いボタンの処理
+        window.startVote = async () => {
+            await updateDoc(roomRef, { votes: increment(1) });
+        };
+
+        function showIppon() {
+            const logo = document.getElementById('ippon-logo');
+            logo.style.display = 'block';
+            setTimeout(() => { logo.style.display = 'none'; }, 2000);
+        }
+
+        window.toggleAnswerMode = () => {
+            const v = document.getElementById('vote-section');
+            v.classList.toggle('hidden');
+        };
+    </script>
+</body>
+</html>
